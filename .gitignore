@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Python version
+.python-version
+
+# Model files (too large for git)
+*.pt
+*.onnx
+*.h5
+
+# Results (generated outputs)
+results/*.jpg
+results/*.png
+results/*.mp4
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Cache
+.cache/
+.pytest_cache/
+*.log
