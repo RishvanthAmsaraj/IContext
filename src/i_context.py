@@ -655,11 +655,28 @@ def main():
             if florence_caption:
                 vlm_objects = extract_objects_from_caption(florence_caption)
             merged = merge_object_lists(objects, vlm_objects)
-            counts = Counter(merged)
-            counts_text = ", ".join([f"{obj}: {count}" for obj, count in counts.items()])
-            cv2.rectangle(processed_frame, (0, h - 25), (w, h), (0, 0, 0), -1)
-            cv2.putText(processed_frame, f"Objects: {counts_text}", (10, h - 8),
+
+            # Separate YOLO objects from VLM objects for distinct display
+            yolo_only = [o for o in merged if not o.startswith("[VLM]")]
+            vlm_only = [o for o in merged if o.startswith("[VLM]")]
+
+            # Count totals
+            bar_h = 45 if vlm_only else 25  # Make room for VLM line
+            cv2.rectangle(processed_frame, (0, h - bar_h), (w, h), (0, 0, 0), -1)
+
+            # YOLO objects line (white/gray)
+            yolo_counts = Counter(yolo_only)
+            yolo_text = "YOLO: " + ", ".join([f"{obj}: {count}" for obj, count in yolo_counts.items()])
+            cv2.putText(processed_frame, yolo_text, (10, h - bar_h + 15),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1, cv2.LINE_AA)
+
+            # VLM objects line (cyan/yellow to stand out)
+            if vlm_only:
+                vlm_counts = Counter(vlm_only)
+                vlm_text = "VLM+:  " + ", ".join([f"{obj.replace('[VLM] ', '')}: {count}" for obj, count in vlm_counts.items()])
+                cv2.putText(processed_frame, vlm_text, (10, h - bar_h + 35),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1, cv2.LINE_AA)
+                print(f"Florence-2 VLM objects: {vlm_only}")  # Log to console
 
         cv2.imshow('IContext - Advanced Scene Analysis', processed_frame)
 
