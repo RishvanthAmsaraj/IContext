@@ -555,15 +555,26 @@ def main():
     # Format: {track_id: {"phone_ear": count, "typing": count, "holding": count}}
     interaction_votes = {}
 
+    # Florence-2 is slow on CPU (~3-5s per image), so throttle it
+    # Update the VLM description every N frames (default: every 60 frames ~ 2 seconds)
+    FLORENCE_INTERVAL = 60
+    frame_count = 0
+    florence_caption = None
+    describer = get_scene_describer()  # Lazy load once
+    if describer:
+        print(f"Florence-2 enabled. Generating descriptions every {FLORENCE_INTERVAL} frames.")
+    else:
+        print("Florence-2 not available. Running in rule-based mode only.")
+
     while True:
         ret, frame = cap.read()
         if not ret:
             print("Error: Failed to capture frame.")
             break
 
+        frame_count += 1
+
         # Reconcile tracking: move lost objects to buffer, clean up old entries
-        # We pass current known IDs (we'll update this from process_frame)
-        # For now, use the IDs we know about
         current_ids = set(tracked_objects_state.keys())
         tracked_objects_state, interaction_votes = reconcile_tracking(
             current_ids, tracked_objects_state, interaction_votes
@@ -574,29 +585,66 @@ def main():
             frame, tracked_objects_state, interaction_votes
         )
 
-        # Display context at the top
-        cv2.rectangle(processed_frame, (0, 0), (processed_frame.shape[1], 80), (0, 0, 0), -1)
-        # Wrap text if it's too long
-        y_offset = 20
+        # Periodically generate Florence-2 caption (throttled)
+        if describer and frame_count % FLORENCE_INTERVAL == 0:
+            try:
+                florence_caption = describer.get_caption(processed_frame, detailed=True)
+            except Exception as e:
+                print(f"Florence-2 error: {e}")
+
+        # Draw overlays (same as image mode)
+        h, w = processed_frame.shape[:2]
+        banner_h = 110 if florence_caption else 60
+        cv2.rectangle(processed_frame, (0, 0), (w, banner_h), (0, 0, 0), -1)
+
+        # Title
+        cv2.putText(processed_frame, "IContext Live Analysis", (10, 18),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1, cv2.LINE_AA)
+
+        # Wrap context text
+        y_offset = 38
         words = context.split(' ')
         line = ""
         for word in words:
             test_line = line + word + " "
-            (w, _), _ = cv2.getTextSize(test_line, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
-            if w > processed_frame.shape[1] - 20:
-                cv2.putText(processed_frame, line, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
+            (tw, _), _ = cv2.getTextSize(test_line, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
+            if tw > w - 20:
+                cv2.putText(processed_frame, line, (10, y_offset),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
                 line = word + " "
-                y_offset += 15
+                y_offset += 14
             else:
                 line = test_line
-        cv2.putText(processed_frame, line, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
+        cv2.putText(processed_frame, line, (10, y_offset),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
 
-        # Display object counts at the bottom
+        # Draw Florence-2 caption if available
+        if florence_caption:
+            y_offset = 70
+            cv2.putText(processed_frame, "Florence-2:", (10, y_offset),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1, cv2.LINE_AA)
+            y_offset += 14
+            words = florence_caption.split(' ')
+            line = ""
+            for word in words:
+                test_line = line + word + " "
+                (tw, _), _ = cv2.getTextSize(test_line, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)
+                if tw > w - 20:
+                    cv2.putText(processed_frame, line, (10, y_offset),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.35, (200, 200, 255), 1, cv2.LINE_AA)
+                    line = word + " "
+                    y_offset += 12
+                else:
+                    line = test_line
+            cv2.putText(processed_frame, line, (10, y_offset),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.35, (200, 200, 255), 1, cv2.LINE_AA)
+
+        # Object counts at the bottom
         if objects:
             counts = Counter(objects)
             counts_text = ", ".join([f"{obj}: {count}" for obj, count in counts.items()])
-            cv2.rectangle(processed_frame, (0, processed_frame.shape[0] - 25), (processed_frame.shape[1], processed_frame.shape[0]), (0, 0, 0), -1)
-            cv2.putText(processed_frame, f"Objects: {counts_text}", (10, processed_frame.shape[0] - 8),
+            cv2.rectangle(processed_frame, (0, h - 25), (w, h), (0, 0, 0), -1)
+            cv2.putText(processed_frame, f"Objects: {counts_text}", (10, h - 8),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1, cv2.LINE_AA)
 
         cv2.imshow('IContext - Advanced Scene Analysis', processed_frame)
