@@ -16,6 +16,7 @@ import argparse
 
 # Import the context analyzer
 from context_analyzer import ContextAnalyzer
+from caption_parser import extract_objects_from_caption, merge_object_lists
 
 # --- Configuration ---
 MODEL_PATH = 'yolov8n.pt'
@@ -510,9 +511,14 @@ def main():
             cv2.putText(processed_frame, line, (10, y_offset),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.35, (200, 200, 255), 1, cv2.LINE_AA)
 
-        # Draw object counts at the bottom
-        if objects:
-            counts = Counter(objects)
+        # Draw object counts at the bottom (YOLO + VLM combined)
+        if objects or florence_caption:
+            # Merge YOLO objects with VLM-extracted objects
+            vlm_objects = []
+            if florence_caption:
+                vlm_objects = extract_objects_from_caption(florence_caption)
+            merged = merge_object_lists(objects, vlm_objects)
+            counts = Counter(merged)
             counts_text = ", ".join([f"{obj}: {count}" for obj, count in counts.items()])
             cv2.rectangle(processed_frame, (0, h - 25), (w, h), (0, 0, 0), -1)
             cv2.putText(processed_frame, f"Objects: {counts_text}", (10, h - 8),
@@ -521,6 +527,10 @@ def main():
         cv2.imwrite(out_path, processed_frame)
         print(f"\n=== Context Analysis ===")
         print(f"Context: {context}")
+        if florence_caption:
+            vlm_objs = extract_objects_from_caption(florence_caption)
+            print(f"VLM-extracted objects: {vlm_objs}")
+        print(f"Objects detected: {objects}")
         print(f"Objects detected: {objects}")
         if florence_caption:
             print(f"Florence-2 Description: {florence_caption}")
@@ -639,9 +649,13 @@ def main():
             cv2.putText(processed_frame, line, (10, y_offset),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.35, (200, 200, 255), 1, cv2.LINE_AA)
 
-        # Object counts at the bottom
-        if objects:
-            counts = Counter(objects)
+        # Object counts at the bottom (YOLO + VLM combined)
+        if objects or florence_caption:
+            vlm_objects = []
+            if florence_caption:
+                vlm_objects = extract_objects_from_caption(florence_caption)
+            merged = merge_object_lists(objects, vlm_objects)
+            counts = Counter(merged)
             counts_text = ", ".join([f"{obj}: {count}" for obj, count in counts.items()])
             cv2.rectangle(processed_frame, (0, h - 25), (w, h), (0, 0, 0), -1)
             cv2.putText(processed_frame, f"Objects: {counts_text}", (10, h - 8),
