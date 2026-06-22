@@ -2,49 +2,51 @@
 
 **Context-aware computer vision that understands scenes, objects, and human actions.**
 
-IContext combines real-time object detection, pose estimation, and a vision-language model (Florence-2) to not just *see* what's in a frame, but to **understand the context** behind it.
+IContext combines real-time object detection, pose estimation, and a vision-language model (Florence-2) to not just identify what is in a frame, but to understand the context behind it.
 
 ---
 
-## ✨ Features
+## Features
 
-- 🎯 **Object Detection** — YOLOv8 with persistent tracking IDs
-- 👤 **Person Analysis** — MediaPipe pose, hands, and face mesh
-- 🧠 **Contextual Reasoning** — Rule-based + Florence-2 VLM descriptions
-- 🔄 **Smart Re-identification** — Maintains object identity when briefly occluded
-- 🤚 **Hand-Object Interaction** — Detects how you're holding/using objects (typing, holding to ear)
-- 🏷️ **Action-Based Reclassification** — "remote" → "cell phone" when held to ear
-- 📷 **Multiple Input Modes** — Webcam, video files, and images
-- 💾 **Snapshot Capture** — Save annotated frames
+- **Object Detection** -- YOLOv8 with persistent tracking IDs
+- **Person Analysis** -- MediaPipe pose, hands, and face mesh
+- **Contextual Reasoning** -- Rule-based engine plus Florence-2 VLM descriptions
+- **Smart Re-identification** -- Maintains object identity when briefly occluded
+- **Hand-Object Interaction** -- Detects how objects are being held or used (typing, holding to ear)
+- **Action-Based Reclassification** -- "remote" reclassified as "cell phone" when held to ear
+- **Multiple Input Modes** -- Webcam, video files, and static images
+- **Snapshot Capture** -- Save annotated frames at any time
 
 ---
 
-## 🖼️ Demo
+## Demo
 
 ![Demo Output](docs/demo.jpg)
 
 **Example output:**
 - **Detected:** `keyboard`, `mouse`, `person`
-- **Rule-based context:** "This looks like a computer workstation"
+- **Rule-based context:** "This looks like a computer workstation."
 - **Florence-2 description:** "There is a white desk in a room. There is a black laptop on top of the desk. There are two monitors on the desk in front of the laptop."
+- **VLM-extracted objects:** desk, laptop, monitors
 
 ---
 
-## 🚀 Installation
+## Installation
 
 ### Prerequisites
-- **Python 3.11** (tested) — 3.10+ should work
-- **macOS / Linux** (tested on macOS Darwin 24.6.0)
-- Webcam (for live mode)
+
+- **Python 3.11** (tested). Python 3.10 or newer should also work.
+- **macOS or Linux** (tested on macOS Darwin 24.6.0)
+- A working webcam (required for live webcam mode)
 
 ### Setup
 
 ```bash
-# Clone the repo
+# Clone the repository
 git clone https://github.com/RishvanthAmsaraj/IContext.git
 cd IContext
 
-# Create virtual environment
+# Create a virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
 
@@ -55,39 +57,53 @@ pip install transformers accelerate timm einops pillow torch torchvision
 
 ---
 
-## 📖 Usage
+## Usage
 
 ### Webcam Mode (Live)
+
 ```bash
 python src/i_context.py
-# Press 'q' to quit, 'c' to capture
 ```
 
+- Press `q` to quit.
+- Press `c` to capture and save the current frame.
+
 ### Image Mode
+
 ```bash
 python src/i_context.py --source image --path /path/to/image.jpg
 ```
 
+Loads a single image, runs the full analysis pipeline, and saves the annotated result to `results/image_analysis.jpg`.
+
 ### Video Mode
+
 ```bash
 python src/i_context.py --source video --path /path/to/video.mp4
 ```
 
+Processes a video file frame-by-frame using the same pipeline as the webcam mode.
+
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
-Input (Webcam/Video/Image)
-    ↓
+Input (Webcam / Video / Image)
+        |
+        v
 [YOLOv8 Object Detection + Tracking]
-    ↓
-[MediaPipe Pose, Hands, Face]
-    ↓
+        |
+        v
+[MediaPipe Pose, Hands, Face Mesh]
+        |
+        v
 [Hand-Object Interaction Analysis]
-    ↓
+        |
+        v
 [Rule-based Context + Florence-2 VLM]
-    ↓
+        |
+        v
 [Annotated Output + Context Description]
 ```
 
@@ -95,33 +111,34 @@ Input (Webcam/Video/Image)
 
 | Module | Purpose |
 |--------|---------|
-| `src/i_context.py` | Main script with all detection + tracking + context |
-| `src/context_analyzer.py` | Rule-based context inference |
+| `src/i_context.py` | Main pipeline: detection, tracking, interaction, context |
+| `src/context_analyzer.py` | Rule-based context inference engine |
 | `src/scene_describer.py` | Florence-2 vision-language model wrapper |
-| `src/detect_objects.py` | Basic object detection (simpler version) |
+| `src/caption_parser.py` | Extracts object nouns from VLM captions |
+| `src/detect_objects.py` | Simplified object detection (legacy entry point) |
 
 ---
 
-## 🧪 The "Phone vs Remote" Demo
+## The "Phone vs Remote" Demo
 
-This is the most impressive demonstration of the reclassification system:
+This is the most illustrative demonstration of the reclassification system:
 
-1. Place your phone flat on a table → detected as `remote` (green box)
-2. Pick it up and hold it to your ear
-3. After ~2 seconds → label changes to `cell phone` (yellow box)
-4. The voting system prevents false positives from single-frame errors
+1. Place a phone flat on a table. It will be detected as `remote` (green box).
+2. Pick it up and hold it to your ear.
+3. After roughly 2 seconds, the label changes to `cell phone` (yellow box).
 
 The system uses:
-- **Hand-object proximity** (distance < 150px)
-- **Pose landmarks** (nose position for "to ear" detection)
+
+- **Hand-object proximity** (distance threshold of 150 pixels)
+- **Pose landmarks** (nose position used for "to ear" detection)
 - **Finger curl analysis** (typing gesture detection)
-- **Voting with decay** (15+ consistent frames to reclassify)
+- **Voting with decay** (15+ consistent frames required to reclassify)
 
 ---
 
-## 🎯 Context Rules
+## Context Rules
 
-The system uses rule-based context mapping (in `context_analyzer.py`):
+The rule-based context engine is defined in `src/context_analyzer.py`:
 
 ```python
 frozenset({"keyboard", "mouse"}): [
@@ -131,53 +148,91 @@ frozenset({"keyboard", "mouse"}): [
 frozenset({"book", "pen", "laptop"}): [
     "Someone was likely doing homework or studying.",
 ],
-# ... more rules
+# ... additional rules
 ```
 
-Florence-2 provides richer natural language descriptions on top of these rules.
+Florence-2 provides richer, natural-language descriptions on top of these rules.
 
 ---
 
-## 🤖 Models Used
+## Hybrid Detection: YOLO + Florence-2
+
+YOLOv8 is trained on the COCO dataset (80 object categories) and provides precise bounding boxes. Florence-2 is trained on FLD-5B (5.4 billion annotations) and can describe any visible element.
+
+The system combines both:
+
+- YOLO provides localized detections with bounding boxes.
+- Florence-2 provides a natural-language scene description.
+- The caption parser extracts object nouns from the Florence-2 output.
+- Objects found only by Florence-2 are tagged with `[VLM]` in the display.
+
+**Example result on a desk scene:**
+- YOLO: `keyboard`, `mouse`, `person`
+- VLM+ : `desk`, `laptop`, `monitors`
+
+---
+
+## Models Used
 
 | Model | Size | Purpose |
 |-------|------|---------|
-| **YOLOv8n** | 6 MB | Object detection + tracking |
-| **MediaPipe** | ~10 MB | Pose/hands/face landmarks |
-| **Florence-2-base** | ~1 GB | Vision-language scene description |
+| YOLOv8n | 6 MB | Object detection and tracking |
+| MediaPipe | ~10 MB | Pose, hand, and face landmarks |
+| Florence-2-base | ~1 GB | Vision-language scene description |
 
-All models run locally — no API calls, no cloud dependencies.
-
----
-
-## 📊 Performance
-
-On M1/M2 MacBook Pro:
-- Object detection: ~30 FPS
-- MediaPipe: ~25 FPS
-- Florence-2 (per image): ~3-5 seconds on CPU
+All models run locally. No API calls or cloud dependencies are required.
 
 ---
 
-## 🛠️ Tech Stack
+## Performance
+
+On Apple Silicon (M1 / M2 MacBook Pro):
+
+- Object detection: approximately 30 FPS
+- MediaPipe processing: approximately 25 FPS
+- Florence-2 (per image): approximately 3 to 5 seconds on CPU
+
+Florence-2 is throttled to every 60 frames (~2 seconds at 30 FPS) in live mode to maintain responsiveness.
+
+---
+
+## Tech Stack
 
 - **Python 3.11**
-- **OpenCV** — Video capture + image processing
-- **Ultralytics YOLOv8** — Object detection + tracking
-- **MediaPipe** — Pose/hand/face landmarks
-- **Hugging Face Transformers** — Florence-2 VLM
-- **PyTorch** — Deep learning backend
+- **OpenCV** -- video capture and image processing
+- **Ultralytics YOLOv8** -- object detection and tracking
+- **MediaPipe** -- pose, hand, and face landmarks
+- **Hugging Face Transformers** -- Florence-2 vision-language model
+- **PyTorch** -- deep learning backend
 
 ---
 
-## 📝 License
+## Project Structure
 
-MIT License — feel free to use this for your own projects!
+```
+IContext/
+|-- .gitignore
+|-- README.md
+|-- src/
+|   |-- i_context.py         # Main pipeline
+|   |-- context_analyzer.py  # Rule-based context inference
+|   |-- scene_describer.py   # Florence-2 VLM wrapper
+|   |-- caption_parser.py    # Extract objects from VLM captions
+|   |-- detect_objects.py    # Simplified detection (legacy)
+|-- docs/
+    |-- demo.jpg             # Example output (placeholder)
+```
 
 ---
 
-## 🙋 Author
+## License
+
+MIT License. See `LICENSE` file for details.
+
+---
+
+## Author
 
 **Rishvanth Amsaraj**
 - GitHub: [@RishvanthAmsaraj](https://github.com/RishvanthAmsaraj)
-- Built as part of an AI/ML research portfolio project
+- Built as part of an AI/ML research portfolio.
