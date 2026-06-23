@@ -227,7 +227,7 @@ IContext/
 
 ## License
 
-MIT License. See `LICENSE` file for details.
+All Rights Reserved. See `LICENSE` file for details.
 
 ---
 
